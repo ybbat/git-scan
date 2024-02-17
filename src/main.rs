@@ -37,16 +37,17 @@ fn parse_dir(arg: &str) -> Result<PathBuf, std::io::Error> {
     }
 }
 
+const INDENT: &str = "   ";
 const TRUNK: &str = "│  ";
 const BRANCH: &str = "├──";
 const FINAL_BRANCH: &str = "└──";
 
 fn print_tree(path: PathBuf, depth: u32) {
     println!("{}", path.display());
-    print_tree_recursive(path, depth, 0);
+    print_tree_recursive(path, depth, 0, String::from(""));
 }
 
-fn print_tree_recursive(path: PathBuf, max_depth: u32, cur_depth: u32) {
+fn print_tree_recursive(path: PathBuf, max_depth: u32, cur_depth: u32, prefix: String) {
     if cur_depth >= max_depth {
         return;
     }
@@ -55,25 +56,32 @@ fn print_tree_recursive(path: PathBuf, max_depth: u32, cur_depth: u32) {
         Ok(entries) => entries,
         Err(_) => return,
     }
+    .filter(|entry| entry.is_ok() && entry.as_ref().unwrap().metadata().unwrap().is_dir())
     .collect();
 
     let count = entries.len();
 
     zip(entries.iter(), 0..count).for_each(|(entry, i)| match entry {
         Ok(entry) => {
-            if !entry.metadata().unwrap().is_dir() {
-                return;
-            }
-
-            let is_last = i == count - 1;
-            let mut prefix = if cur_depth > 0 {
-                TRUNK.repeat(cur_depth as usize)
+            let (marker, next_pre) = if i == count - 1 {
+                (FINAL_BRANCH, INDENT)
             } else {
-                String::new()
+                (BRANCH, TRUNK)
             };
-            prefix += if is_last { FINAL_BRANCH } else { BRANCH };
-            println!("{}{}", prefix, entry.file_name().to_string_lossy());
-            print_tree_recursive(path.join(entry.file_name()), max_depth, cur_depth + 1)
+
+            println!(
+                "{}{} {}",
+                prefix,
+                marker,
+                entry.file_name().to_string_lossy()
+            );
+
+            print_tree_recursive(
+                path.join(entry.file_name()),
+                max_depth,
+                cur_depth + 1,
+                format!("{}{}", prefix, next_pre),
+            )
         }
         Err(_) => return,
     });
