@@ -1,6 +1,8 @@
-use std::{iter::zip, path::PathBuf};
+use std::{fs::DirEntry, iter::zip, path::PathBuf};
 
 use clap::Parser;
+use git2::Repository;
+use owo_colors::OwoColorize;
 
 /// Scans a directory tree for git repositories
 #[derive(Parser)]
@@ -69,20 +71,31 @@ fn print_tree_recursive(path: PathBuf, max_depth: u32, cur_depth: u32, prefix: S
                 (BRANCH, TRUNK)
             };
 
-            println!(
-                "{}{} {}",
-                prefix,
-                marker,
-                entry.file_name().to_string_lossy()
-            );
-
-            print_tree_recursive(
-                path.join(entry.file_name()),
-                max_depth,
-                cur_depth + 1,
-                format!("{}{}", prefix, next_pre),
-            )
+            match Repository::open(entry.path()) {
+                Ok(repo) => {
+                    println!("{}{} {}", prefix, marker, format_repo(entry, repo));
+                }
+                Err(_) => {
+                    println!("{}{} {}", prefix, marker, format_dir(entry));
+                    print_tree_recursive(
+                        path.join(entry.file_name()),
+                        max_depth,
+                        cur_depth + 1,
+                        format!("{}{}", prefix, next_pre),
+                    )
+                }
+            }
         }
         Err(_) => return,
     });
+}
+
+fn format_dir(dir: &DirEntry) -> String {
+    let s = dir.file_name().to_string_lossy().to_string();
+    return s.dimmed().to_string();
+}
+
+fn format_repo(dir: &DirEntry, repo: Repository) -> String {
+    let s = dir.file_name().to_string_lossy().to_string();
+    return s.green().to_string();
 }
