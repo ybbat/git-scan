@@ -1,8 +1,8 @@
 use std::{fs::DirEntry, iter::zip, path::PathBuf};
 
 use clap::Parser;
-use git2::Repository;
-use owo_colors::OwoColorize;
+use git2::{Repository, StatusOptions};
+use owo_colors::{OwoColorize, Style};
 
 /// Scans a directory tree for git repositories
 #[derive(Parser)]
@@ -96,6 +96,34 @@ fn format_dir(dir: &DirEntry) -> String {
 }
 
 fn format_repo(dir: &DirEntry, repo: Repository) -> String {
-    let s = dir.file_name().to_string_lossy().to_string();
-    return s.green().to_string();
+    let dir_name = dir.file_name().to_string_lossy().to_string();
+    let mut style = Style::new().green();
+
+    let mut status_options = StatusOptions::new();
+    status_options.include_untracked(true);
+
+    if any_unstaged(&repo) {
+        style = style.italic();
+    }
+
+    return dir_name.style(style).to_string();
+}
+
+fn any_unstaged(repo: &Repository) -> bool {
+    let mut status_options = StatusOptions::new();
+    status_options.include_untracked(true);
+
+    let status = repo.statuses(Some(&mut status_options)).unwrap();
+
+    let unstaged = status.iter().any(|entry| {
+        entry.status().intersects(
+            git2::Status::WT_NEW
+                | git2::Status::WT_MODIFIED
+                | git2::Status::WT_DELETED
+                | git2::Status::WT_RENAMED
+                | git2::Status::WT_TYPECHANGE,
+        )
+    });
+
+    unstaged
 }
